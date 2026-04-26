@@ -15,6 +15,9 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("--config", default="config/example_config.json") # 配置文件
     p.add_argument("--start-offset-seconds", type=int, default=2) # 启动偏移时间
+    # action="store_true" 是 argparse 中定义布尔开关型参数（flag）的方式。它的行为是：
+    #   - 命令行中出现这个参数 → 值被设为 True
+    #   - 命令行中没出现 → 值保持默认 False
     p.add_argument("--respect-config-start-time", action="store_true") # 尊重配置文件中的启动时间
     p.add_argument("--initial-mid", type=float, default=65000.0) # 初始中间价
     p.add_argument("--spread", type=float, default=20.0) # 初始价差
