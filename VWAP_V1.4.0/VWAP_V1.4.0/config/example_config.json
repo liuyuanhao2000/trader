@@ -1,0 +1,36 @@
+{
+  "instrument_type": "spot",
+  "contract_type": "USDT_perpetual",
+  "common": {
+    "symbol": "BTCUSDT",
+    "side": "BUY",
+    "notional": 10000,
+    "start_time": "2026-04-02T15:30:00",
+    "quote_currency": "USDT",
+    "base_currency": "BTC"
+  },
+  "execution": {
+    "total_duration_seconds": 10,
+    "order_interval_seconds": 2,
+    "price_offset": -0.0003,
+    "price_offset_mode": "relative",
+    "max_slippage": 0.01,
+    "unfilled_alarm_threshold": 0.1,
+    "record_granularity": "per_order",
+    "tail_force_early_seconds": 0,
+    "tail_risk_threshold_ratio": 0.1,
+    "tail_market_slippage": 0.002,
+    "spot_sell_truncate_to_holdings": true,
+    "leverage": 5,
+    "contract_multiplier": 1.0,
+    "mock_fill_sensitivity": 0.15,
+    "debug": false
+  },
+  "log_storage": {
+    "output_jsonl_path": "execution_logs.jsonl"
+  },
+  "alerting": {
+    "print_alerts": true
+  }
+}
+
