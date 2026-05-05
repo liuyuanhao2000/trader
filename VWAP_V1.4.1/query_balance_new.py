@@ -5,7 +5,7 @@ import requests
 from urllib.parse import urlencode
 from flask import Flask, render_template_string, request
 
-# 运行 python query_balance.py,然后浏览器打开 http://127.0.0.1:5000。
+# 运行 python query_balance_new.py,然后浏览器打开 http://127.0.0.1:5000。
 
 #   要点:
 #   - 顶部汇总: 资产数、Free 总值(USDT)、Locked 总值(USDT)、合计、无价资产数
