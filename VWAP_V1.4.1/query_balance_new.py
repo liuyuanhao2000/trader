@@ -18,7 +18,6 @@ API_KEY = "VuG06vAzyJ4ChynTEKiWSIkIg4NcpPW91eIutCBPdj29uUQLz2pxAswEl69JRoFj"
 API_SECRET = "OrZi1xfOyNJIEz2MIndnRvAv4Br4I60XWKdmI32Ctyj3lemF5DJkpRlFBc4fqU4c".encode()
 BASE_URL = "https://testnet.binance.vision"
 
-
 def sign(params):
     query = urlencode(params)
     return hmac.new(API_SECRET, query.encode(), hashlib.sha256).hexdigest()
