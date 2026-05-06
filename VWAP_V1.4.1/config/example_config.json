@@ -5,7 +5,7 @@
     "symbol": "BTCUSDT",
     "side": "BUY",
     "notional": 10000,
-    "start_time": "2026-05-05T17:07:00+08:00",
+    "start_time": "2026-05-05T14:48:00",
     "quote_currency": "USDT",
     "base_currency": "BTC"
   },
