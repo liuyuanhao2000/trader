@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal, Optional, Tuple
 
-from ..models import OrderFill, OrderType, Side
+from ..models import OrderFill, OcoPlacement, OrderType, Side
 
 
 @dataclass
@@ -60,5 +60,19 @@ class BaseExchange(ABC):
         client_order_id: str,
         slippage: float = 0.0,
     ) -> OrderFill:
+        raise NotImplementedError
+
+    @abstractmethod
+    def place_oco_order( # OCO 止盈止损下单
+        self,
+        *,
+        symbol: str,
+        side: Side,                # 平仓方向（与主单相反）
+        qty: float,
+        tp_price: float,
+        sl_stop_price: float,
+        sl_limit_price: float,
+        client_order_id_prefix: str,
+    ) -> OcoPlacement:
         raise NotImplementedError
 

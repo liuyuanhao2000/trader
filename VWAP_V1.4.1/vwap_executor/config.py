@@ -94,6 +94,24 @@ class ExchangeConfig:
 
 
 @dataclass
+class TakeProfitStopLossConfig:
+    """
+    子单成交后自动挂 OCO 止盈止损的配置。
+
+    主单 BUY（建多仓）→ OCO 平仓方向 SELL：
+        TP 限价      = avg_fill * (1 + tp_pct)
+        SL 触发价    = avg_fill * (1 - sl_pct)
+        SL 成交保护价 = avg_fill * (1 - sl_pct - sl_limit_buffer)
+    主单 SELL 反向；现货 SELL 不挂 OCO。
+    """
+    enabled: bool = False
+    tp_pct: float = 0.02
+    sl_pct: float = 0.01
+    sl_limit_buffer: float = 0.002
+    skip_if_filled_qty_zero: bool = True
+
+
+@dataclass
 class VwapConfig:
     common: CommonInput
     execution: ExecutionParams
@@ -107,6 +125,7 @@ class VwapConfig:
     log_storage: LogStorage = field(default_factory=LogStorage)
     alerting: AlertingConfig = field(default_factory=AlertingConfig)
     exchange: ExchangeConfig = field(default_factory=ExchangeConfig)
+    tp_sl: TakeProfitStopLossConfig = field(default_factory=TakeProfitStopLossConfig)
 
     @staticmethod
     def _parse_datetime(v: str) -> datetime:
@@ -133,6 +152,7 @@ class VwapConfig:
             log_storage=LogStorage(**raw.get("log_storage", {})),
             alerting=AlertingConfig(**raw.get("alerting", {})),
             exchange=ExchangeConfig(**raw.get("exchange", {})),
+            tp_sl=TakeProfitStopLossConfig(**raw.get("take_profit_stop_loss", {})),
         )
         return cfg
 

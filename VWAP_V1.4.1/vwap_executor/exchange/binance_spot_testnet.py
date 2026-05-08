@@ -3,6 +3,7 @@ from __future__ import annotations
 import hmac
 import hashlib
 import time
+import uuid
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 from urllib.parse import urlencode
@@ -10,7 +11,7 @@ from urllib.parse import urlencode
 import requests
 
 from ..config import ExecutionParams
-from ..models import OrderFill, Side
+from ..models import OcoPlacement, OrderFill, Side
 from .base import BaseExchange, BestPrices
 
 
@@ -350,4 +351,73 @@ class BinanceSpotTestnetExchange(BaseExchange):
         from datetime import datetime
 
         return datetime.utcnow()
+
+    def place_oco_order(
+        self,
+        *,
+        symbol: str,
+        side: Side,
+        qty: float,
+        tp_price: float,
+        sl_stop_price: float,
+        sl_limit_price: float,
+        client_order_id_prefix: str,
+    ) -> OcoPlacement:
+        if symbol != self.symbol:
+            raise RuntimeError(f"Binance adapter configured symbol={self.symbol}, got {symbol}")
+
+        # 复用既有 step/tick 取整逻辑，避免被交易所拒单
+        filters = self._ensure_filters()
+        rounded_qty = self._round_down(float(qty), filters.step_size)
+        if rounded_qty <= 0 or rounded_qty < filters.min_qty:
+            raise RuntimeError(
+                f"OCO qty {qty} below min_qty {filters.min_qty} after rounding to step {filters.step_size}"
+            )
+
+        rounded_tp = self._price_from_price(limit_price=tp_price)
+        rounded_sl_stop = self._price_from_price(limit_price=sl_stop_price)
+        rounded_sl_limit = self._price_from_price(limit_price=sl_limit_price)
+        if rounded_tp <= 0 or rounded_sl_stop <= 0 or rounded_sl_limit <= 0:
+            raise RuntimeError("Invalid OCO prices after rounding")
+
+        suffix = uuid.uuid4().hex[:8]
+        list_client_id = f"{client_order_id_prefix}-{suffix}"
+        params = {
+            "symbol": symbol,
+            "side": side,
+            "quantity": f"{rounded_qty:.16f}".rstrip("0").rstrip("."),
+            "price": f"{rounded_tp:.8f}".rstrip("0").rstrip("."),
+            "stopPrice": f"{rounded_sl_stop:.8f}".rstrip("0").rstrip("."),
+            "stopLimitPrice": f"{rounded_sl_limit:.8f}".rstrip("0").rstrip("."),
+            "stopLimitTimeInForce": "GTC",
+            "listClientOrderId": list_client_id,
+        }
+        created = self._signed_request(method="POST", path="/api/v3/order/oco", params=params)
+
+        order_list_id = str(created.get("orderListId", ""))
+        reports = created.get("orderReports") or []
+        # 币安返回 orderReports 顺序不固定，按 type 区分
+        tp_id = ""
+        sl_id = ""
+        for rep in reports:
+            rep_type = (rep.get("type") or "").upper()
+            order_id = str(rep.get("orderId", ""))
+            if "STOP" in rep_type:
+                sl_id = order_id
+            else:
+                tp_id = order_id
+
+        return OcoPlacement(
+            oco_list_id=order_list_id,
+            tp_order_id=tp_id,
+            sl_order_id=sl_id,
+            symbol=symbol,
+            side=side,
+            qty=float(rounded_qty),
+            tp_price=float(rounded_tp),
+            sl_stop_price=float(rounded_sl_stop),
+            sl_limit_price=float(rounded_sl_limit),
+            placed_at=self._now_datetime(),
+            raw={"adapter": "binance_spot_testnet", "listClientOrderId": list_client_id},
+        )
 

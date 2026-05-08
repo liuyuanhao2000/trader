@@ -87,6 +87,8 @@ class SpotVwapExecutor(VwapBaseExecutor):
             slippage=execution.tail_market_slippage,
         )
 
+        oco = self._maybe_place_oco_protection(fill)
+
         # 这里尾盘市价订单也落一条日志，便于分析
         unfilled_notional = max(0.0, remaining_unfilled_notional - fill.filled_notional)
         unfilled_ratio = (unfilled_notional / remaining_unfilled_notional) if remaining_unfilled_notional > 0 else 0.0
@@ -112,6 +114,7 @@ class SpotVwapExecutor(VwapBaseExecutor):
             alarm_message=None,
             alarm_types=None,
             alarm_messages=None,
+            oco=oco,
             raw={"tail": True},
         )
         self.log.add_order_log(entry)

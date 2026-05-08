@@ -31,6 +31,12 @@
   },
   "alerting": {
     "print_alerts": true
+  },
+  "take_profit_stop_loss": {
+    "enabled": false,
+    "tp_pct": 0.02,
+    "sl_pct": 0.01,
+    "sl_limit_buffer": 0.002
   }
 }
 

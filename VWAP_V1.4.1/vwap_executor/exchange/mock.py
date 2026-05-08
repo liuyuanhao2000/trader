@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Dict, Tuple
 
 from ..config import ExecutionParams
-from ..models import OrderFill, Side
+from ..models import OcoPlacement, OrderFill, Side
 from .base import BaseExchange, BestPrices
 
 
@@ -44,6 +44,8 @@ class MockExchange(BaseExchange):
         self._quote_asset = quote_asset
         self._balances: Dict[str, float] = {base_asset: float(spot_initial_base_qty)}
         self._order_seq = 0
+        self._oco_seq = 0
+        self._oco_placements: list[OcoPlacement] = []
         self.rng = random.Random(rng_seed)
 
         # 模拟填充敏感度；数值越小，越不容易成交
@@ -211,4 +213,39 @@ class MockExchange(BaseExchange):
             slippage_ratio=None,
             estimated_margin=None,
         )
+
+    def place_oco_order(
+        self,
+        *,
+        symbol: str,
+        side: Side,
+        qty: float,
+        tp_price: float,
+        sl_stop_price: float,
+        sl_limit_price: float,
+        client_order_id_prefix: str,
+    ) -> OcoPlacement:
+        if symbol != self.symbol:
+            raise ValueError(f"MockExchange only supports symbol={self.symbol}")
+
+        self._oco_seq += 1
+        list_id = f"{client_order_id_prefix}-list-{self._oco_seq}"
+        tp_id = f"{client_order_id_prefix}-tp-{self._oco_seq}"
+        sl_id = f"{client_order_id_prefix}-sl-{self._oco_seq}"
+
+        placement = OcoPlacement(
+            oco_list_id=list_id,
+            tp_order_id=tp_id,
+            sl_order_id=sl_id,
+            symbol=symbol,
+            side=side,
+            qty=float(qty),
+            tp_price=float(tp_price),
+            sl_stop_price=float(sl_stop_price),
+            sl_limit_price=float(sl_limit_price),
+            placed_at=self._now(),
+            raw={"adapter": "mock"},
+        )
+        self._oco_placements.append(placement)
+        return placement
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Optional
@@ -8,7 +9,7 @@ from typing import List, Optional
 from ..config import ExecutionParams, VwapConfig
 from ..exchange.base import BaseExchange
 from ..logging_store import TransactionLog
-from ..models import Alert, OrderFill, Side, OrderLogEntry, SubOrderSpec
+from ..models import Alert, OcoPlacement, OrderFill, Side, OrderLogEntry, SubOrderSpec
 from ..order_manager import build_sub_orders, compute_limit_price, build_vwap_schedule
 from ..risk import RiskManager
 
@@ -82,6 +83,8 @@ class VwapBaseExecutor:
             # 子订单：由具体 executor 处理现货/期货的约束（比如现货不超卖）
             fill = self._submit_single_limit(spec=spec, limit_price=plan.limit_price)
 
+            oco = self._maybe_place_oco_protection(fill)
+
             remaining_unfilled_notional = remaining_unfilled_notional - fill.filled_notional
             executed_notional += fill.filled_notional
 
@@ -131,6 +134,7 @@ class VwapBaseExecutor:
                 alarm_message=alarms[0].message if alarms else None,
                 alarm_types=[a.alert_type for a in alarms] if alarms else None,
                 alarm_messages=[a.message for a in alarms] if alarms else None,
+                oco=oco,
                 raw={
                     "best_bid": plan.best_bid,
                     "best_ask": plan.best_ask,
@@ -214,4 +218,64 @@ class VwapBaseExecutor:
         self, *, remaining_unfilled_notional: float, executed_notional_so_far: float
     ) -> float:
         raise NotImplementedError
+
+    def _maybe_place_oco_protection(self, fill: OrderFill) -> Optional[OcoPlacement]:
+        """
+        子单成交后挂 OCO 止盈止损。失败不打断主流程，只发 Alert。
+
+        - 配置未启用 / 现货 SELL（无剩余仓位）/ 未成交 → 跳过。
+        - BUY 主单 → OCO 平仓方向 SELL；SELL 主单 → OCO 平仓方向 BUY。
+        """
+        tp_sl = self.config.tp_sl
+        if not tp_sl.enabled:
+            return None
+
+        instrument_type = self.config.instrument_type
+        main_side: Side = fill.side
+
+        # 现货 SELL 是平仓动作，不挂 OCO
+        if instrument_type == "spot" and main_side == "SELL":
+            return None
+
+        if tp_sl.skip_if_filled_qty_zero and fill.filled_qty <= 0:
+            return None
+
+        if fill.avg_fill_price <= 0:
+            return None
+
+        # 平仓方向与主单相反
+        close_side: Side = "SELL" if main_side == "BUY" else "BUY"
+
+        p = float(fill.avg_fill_price)
+        if main_side == "BUY":
+            tp_price = p * (1.0 + tp_sl.tp_pct)
+            sl_stop_price = p * (1.0 - tp_sl.sl_pct)
+            sl_limit_price = p * (1.0 - tp_sl.sl_pct - tp_sl.sl_limit_buffer)
+        else:
+            tp_price = p * (1.0 - tp_sl.tp_pct)
+            sl_stop_price = p * (1.0 + tp_sl.sl_pct)
+            sl_limit_price = p * (1.0 + tp_sl.sl_pct + tp_sl.sl_limit_buffer)
+
+        prefix = f"oco-{fill.symbol}-{fill.order_id}-{uuid.uuid4().hex[:6]}"
+        try:
+            return self.exchange.place_oco_order(
+                symbol=fill.symbol,
+                side=close_side,
+                qty=float(fill.filled_qty),
+                tp_price=float(tp_price),
+                sl_stop_price=float(sl_stop_price),
+                sl_limit_price=float(sl_limit_price),
+                client_order_id_prefix=prefix,
+            )
+        except Exception as e:
+            alert = Alert(
+                alert_time=self._now(),
+                alert_type="GLOBAL_ERROR",
+                symbol=fill.symbol,
+                order_id=fill.order_id,
+                message=f"OCO placement failed: {e}",
+                extra={"fill_avg_price": p, "filled_qty": fill.filled_qty},
+            )
+            self._handle_alert(alert)
+            return None
 

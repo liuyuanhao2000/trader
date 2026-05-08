@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 
@@ -37,6 +37,22 @@ class OrderFill:
     limit_price: Optional[float] = None # 限价金额
     slippage_ratio: Optional[float] = None  #滑点 |avg_fill - limit|/limit（模拟告警）
     estimated_margin: Optional[float] = None  # 期货：notional / leverage（用于日志追溯）
+
+
+# OCO（One-Cancels-Other）止盈止损挂单结果
+@dataclass
+class OcoPlacement:
+    oco_list_id: str           # 交易所 orderListId（mock 用递增序号）
+    tp_order_id: str           # 止盈腿订单 ID
+    sl_order_id: str           # 止损腿订单 ID
+    symbol: str
+    side: Side                 # OCO 平仓方向（与主单相反）
+    qty: float
+    tp_price: float            # 止盈限价
+    sl_stop_price: float       # 止损触发价
+    sl_limit_price: float      # 止损成交保护价
+    placed_at: datetime
+    raw: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -83,6 +99,9 @@ class OrderLogEntry:
     # 新字段：支持一笔订单关联多条告警（例如未成交比例 + 滑点同时触发）
     alarm_types: Optional[List[str]] = None
     alarm_messages: Optional[List[str]] = None
+
+    # 子单成交后挂出的 OCO 止盈止损（启用 take_profit_stop_loss 时存在）
+    oco: Optional[OcoPlacement] = None
 
     # 额外字段预留
     raw: Optional[Dict[str, Any]] = None
