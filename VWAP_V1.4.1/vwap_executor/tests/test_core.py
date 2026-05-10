@@ -1,6 +1,6 @@
 import asyncio
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from vwap_executor.config import (
     AlertingConfig,
@@ -29,7 +29,7 @@ class TestRiskManager(unittest.TestCase):
     def test_unfilled_ratio_trigger(self):
         rm = RiskManager(unfilled_alarm_threshold=0.1, tail_risk_threshold_ratio=0.2, max_slippage=0.01)
         res = rm.assess_unfilled_ratio(
-            alert_time=datetime.utcnow(),
+            alert_time=datetime.now(timezone.utc),
             symbol="BTCUSDT",
             order_id="o1",
             sub_order_notional=100.0,
@@ -52,7 +52,7 @@ def _build_config(
             symbol="BTCUSDT",
             side=side,  # type: ignore[arg-type]
             notional=notional,
-            start_time=datetime.utcnow() + timedelta(milliseconds=10),
+            start_time=datetime.now(timezone.utc) + timedelta(milliseconds=10),
             quote_currency="USDT",
             base_currency="BTC",
         ),

@@ -347,10 +347,9 @@ class BinanceSpotTestnetExchange(BaseExchange):
         )
 
     def _now_datetime(self):
-        # 避免引入 datetime 导入开销；这里直接给 str 也行，但日志期望 datetime 类型
-        from datetime import datetime
+        from datetime import datetime, timezone
 
-        return datetime.utcnow()
+        return datetime.now(timezone.utc)
 
     def place_oco_order(
         self,

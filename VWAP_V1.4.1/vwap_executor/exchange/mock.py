@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import random
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Tuple
 
 from ..config import ExecutionParams
@@ -52,7 +52,7 @@ class MockExchange(BaseExchange):
         self.fill_sensitivity = (params.mock_fill_sensitivity if params else 0.10) or 0.10
 
     def _now(self) -> datetime:
-        return datetime.utcnow()
+        return datetime.now(timezone.utc)
 
     def _update_price(self) -> None:
         # 简化：小幅随机游走

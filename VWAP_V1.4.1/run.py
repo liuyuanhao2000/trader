@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from vwap_executor import VwapConfig, VwapExecutionEngine
 from vwap_executor.exchange.binance_spot_testnet import BinanceSpotTestnetExchange
@@ -35,7 +35,7 @@ async def main() -> None:
         if args.start_offset_seconds is not None:
             cfg.common.start_time = cfg.common.start_time + timedelta(seconds=args.start_offset_seconds)
     else:
-        cfg.common.start_time = datetime.utcnow() + timedelta(seconds=max(1, args.start_offset_seconds))
+        cfg.common.start_time = datetime.now(timezone.utc) + timedelta(seconds=max(1, args.start_offset_seconds))
 
     log = TransactionLog(output_jsonl_path=cfg.log_storage.output_jsonl_path)
 

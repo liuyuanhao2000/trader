@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # 时间提供者：用于获取当前时间，并等待直到指定时间
 class TimeProvider:
@@ -15,7 +15,7 @@ class TimeProvider:
 # 真实时间提供者：使用系统时间
 class RealTimeProvider(TimeProvider):
     def now(self) -> datetime:
-        return datetime.utcnow()
+        return datetime.now(timezone.utc)
 
     async def sleep_until(self, t: datetime) -> None:
         while True:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Literal, Optional
 from .models import Side, OrderType
 
@@ -129,8 +129,13 @@ class VwapConfig:
 
     @staticmethod
     def _parse_datetime(v: str) -> datetime:
-        # 支持 ISO8601：2026-04-02T15:30:00
-        return datetime.fromisoformat(v)
+        # 支持 ISO8601：2026-04-02T15:30:00（无时区视为 UTC+0）或 2026-04-02T15:30:00+00:00
+        dt = datetime.fromisoformat(v)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        else:
+            dt = dt.astimezone(timezone.utc)
+        return dt
 
     @classmethod
     def from_dict(cls, raw: Dict[str, Any]) -> "VwapConfig":

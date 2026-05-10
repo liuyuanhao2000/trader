@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from ..config import ExecutionParams, VwapConfig
@@ -178,7 +178,7 @@ class VwapBaseExecutor:
 
     def _now(self) -> datetime:
         # 这里用系统时间；更进一步可引入 TimeProvider
-        return datetime.utcnow()
+        return datetime.now(timezone.utc)
 
     def _should_tail_force(self, current_slice_time: datetime) -> bool:
         common = self.config.common
