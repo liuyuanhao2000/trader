@@ -18,10 +18,14 @@ def _split_notional_equal(total: float, n_slices: int) -> List[float]:
         raise ValueError("n_slices must be positive")
 
     raw = total / n_slices
-    parts = [raw for _ in range(n_slices)]
+    # print(total, n_slices, raw)
+    # parts = [raw for _ in range(n_slices)]
+    parts = [raw] * n_slices          # 替代列表推导式，底层 C 实现更快
+    # print(parts)
 
     # 修正累计浮点误差：把差额加到最后一笔
-    diff = total - sum(parts)
+    # diff = total - sum(parts)
+    diff = total - raw * n_slices     # 比sum实现更高效
     parts[-1] += diff
     return parts
 
@@ -56,15 +60,18 @@ def build_vwap_schedule(
     total_duration_seconds: int,
     order_interval_seconds: int,
 ) -> List[datetime]:
-    if order_interval_seconds <= 0:
-        raise ValueError("order_interval_seconds must be positive")
+    # 在 Python 函数定义中，参数列表里的 * 是一个特殊的语法标记，它的作用是：将之后的所有参数强制变为“仅关键字参数”（Keyword-Only Arguments），只能按照名字传递，不能按照位置传递
     if total_duration_seconds <= 0:
         raise ValueError("total_duration_seconds must be positive")
+    if order_interval_seconds <= 0:
+        raise ValueError("order_interval_seconds must be positive")
 
     # 示例：20 分钟，1 分钟 => 20 笔
     n_slices = int(total_duration_seconds // order_interval_seconds)
     if n_slices <= 0:
-        n_slices = 1
+        # n_slices = 1
+        # 我觉得这个位置，报错出来会好很多，这种情况大概率是配置文件没有写对
+        raise ValueError("order_interval_seconds must be positive")
 
     # 如果不是整除，也至少覆盖整个周期：增加最后一笔
     if total_duration_seconds % order_interval_seconds != 0:
