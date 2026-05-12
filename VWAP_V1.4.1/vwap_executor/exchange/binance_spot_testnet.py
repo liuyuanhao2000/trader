@@ -20,6 +20,7 @@ class BinanceSymbolFilters:
     step_size: float
     min_qty: float
     tick_size: float
+    min_notional: float
 
 
 class BinanceSpotTestnetExchange(BaseExchange):
@@ -114,14 +115,22 @@ class BinanceSpotTestnetExchange(BaseExchange):
         filters = {f["filterType"]: f for f in sym.get("filters", [])}
         lot = filters.get("LOT_SIZE", {})
         price = filters.get("PRICE_FILTER", {})
+        # NOTIONAL（新）/ MIN_NOTIONAL（旧）两种都可能存在，优先取新版
+        notional_filter = filters.get("NOTIONAL") or filters.get("MIN_NOTIONAL") or {}
 
         step_size = float(lot.get("stepSize", "0"))
         min_qty = float(lot.get("minQty", "0"))
         tick_size = float(price.get("tickSize", "0"))
+        min_notional = float(notional_filter.get("minNotional", "0"))
         if step_size <= 0 or min_qty <= 0 or tick_size <= 0:
             raise RuntimeError(f"Missing/invalid filters for symbol={self.symbol}")
 
-        self._filters = BinanceSymbolFilters(step_size=step_size, min_qty=min_qty, tick_size=tick_size)
+        self._filters = BinanceSymbolFilters(
+            step_size=step_size,
+            min_qty=min_qty,
+            tick_size=tick_size,
+            min_notional=min_notional,
+        )
         return self._filters
 
     def _round_down(self, x: float, step: float) -> float:
@@ -135,6 +144,9 @@ class BinanceSpotTestnetExchange(BaseExchange):
         qty = self._round_down(qty, filters.step_size)
         # 确保数量不低于 minQty
         if qty < filters.min_qty:
+            return 0.0
+        # 确保名义价值不低于 minNotional（Binance NOTIONAL 过滤器），否则下单会被拒
+        if filters.min_notional > 0 and qty * float(price) < filters.min_notional:
             return 0.0
         return qty
 

@@ -11,13 +11,13 @@
     "symbol": "BTCUSDT",
     "side": "BUY",
     "notional": 1000,
-    "start_time": "2026-04-02T15:30:00",
+    "start_time": "2026-05-11T15:30:00",
     "quote_currency": "USDT",
     "base_currency": "BTC"
   },
   "execution": {
-    "total_duration_seconds": 600,
-    "order_interval_seconds": 60,
+    "total_duration_seconds": 60,
+    "order_interval_seconds": 6,
     "price_offset": 0.0002,
     "price_offset_mode": "relative",
     "max_slippage": 0.01,
