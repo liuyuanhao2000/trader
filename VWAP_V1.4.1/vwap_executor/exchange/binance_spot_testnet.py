@@ -172,6 +172,12 @@ class BinanceSpotTestnetExchange(BaseExchange):
         book = self._public_request(path="/api/v3/ticker/bookTicker", params={"symbol": symbol})
         return BestPrices(bid=float(book["bidPrice"]), ask=float(book["askPrice"]))
 
+    def get_min_notional(self, symbol: str) -> float:
+        if symbol != self.symbol:
+            raise RuntimeError(f"Binance adapter configured symbol={self.symbol}, got {symbol}")
+        print("get_min_notional: ", float(self._ensure_filters().min_notional))
+        return float(self._ensure_filters().min_notional)
+
     def get_available_base_qty(self, symbol: str) -> float:
         if symbol != self.symbol:
             raise RuntimeError(f"Binance adapter configured symbol={self.symbol}, got {symbol}")

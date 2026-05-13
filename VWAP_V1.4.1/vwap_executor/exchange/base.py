@@ -38,6 +38,13 @@ class BaseExchange(ABC):
         期货可返回很大值或用于做“可用保证金”限制（本版本用不上）。
         """
 
+    def get_min_notional(self, symbol: str) -> float:
+        """
+        返回交易所对该交易对要求的最小名义金额（USDT 等计价货币）。
+        无要求或未知时返回 0.0；调用方应据此跳过过小的下单以避免被交易所拒单。
+        """
+        return 0.0
+
     @abstractmethod
     def place_limit_order( # 限价单下单
         self,

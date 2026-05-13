@@ -78,6 +78,41 @@ class SpotVwapExecutor(VwapBaseExecutor):
         if notional_to_send <= 0:
             return 0.0
 
+        # 方案 B：在调用 API 前判断是否低于交易所 min_notional，若是则主动跳过，
+        # 避免无谓的 best_prices 请求与必然失败的下单尝试。adapter 层的方案 A 仍作兜底。
+        min_notional = self.exchange.get_min_notional(common.symbol)
+        if min_notional > 0 and notional_to_send < min_notional:
+            entry = OrderLogEntry(
+                sub_order_index=-1,
+                sub_order_time=self._now(),
+                order_id=f"skipped-tail-{common.symbol}-{uuid.uuid4().hex[:8]}",
+                symbol=common.symbol,
+                side=common.side,
+                order_type="MARKET",
+                notional=notional_to_send,
+                limit_price=None,
+                avg_fill_price=0.0,
+                ordered_notional=notional_to_send,
+                filled_notional=0.0,
+                filled_qty=0.0,
+                unfilled_notional=notional_to_send,
+                unfilled_ratio=1.0,
+                slippage_ratio=None,
+                triggered_alarm=False,
+                alarm_type=None,
+                alarm_message=None,
+                alarm_types=None,
+                alarm_messages=None,
+                oco=None,
+                raw={
+                    "tail": True,
+                    "skipped_reason": "below_min_notional",
+                    "min_notional": min_notional,
+                },
+            )
+            self.log.add_order_log(entry)
+            return 0.0
+
         client_order_id = f"spot-tail-{common.symbol}-{uuid.uuid4().hex[:8]}"
         fill = self.exchange.place_market_order(
             symbol=common.symbol,
