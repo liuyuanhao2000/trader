@@ -10,13 +10,13 @@
   "common": {
     "symbol": "BTCUSDT",
     "side": "BUY",
-    "notional": 2000,
+    "notional": 4000,
     "start_time": "2026-05-11T15:30:00",
     "quote_currency": "USDT",
     "base_currency": "BTC"
   },
   "execution": {
-    "total_duration_seconds": 20,
+    "total_duration_seconds": 30,
     "order_interval_seconds": 2,
     "price_offset": 0.0002,
     "price_offset_mode": "relative",
