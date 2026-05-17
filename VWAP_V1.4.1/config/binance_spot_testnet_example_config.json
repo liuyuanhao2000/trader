@@ -9,7 +9,7 @@
   },
   "common": {
     "symbol": "BTCUSDT",
-    "side": "BUY",
+    "side": "SELL",
     "notional": 4000,
     "start_time": "2026-05-11T15:30:00",
     "quote_currency": "USDT",
@@ -37,6 +37,12 @@
   },
   "alerting": {
     "print_alerts": true
+  },
+  "take_profit_stop_loss": {
+    "enabled": false,
+    "tp_pct": 0.02,
+    "sl_pct": 0.01,
+    "sl_limit_buffer": 0.002
   }
 }
 

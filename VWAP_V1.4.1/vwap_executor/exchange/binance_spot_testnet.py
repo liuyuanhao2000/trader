@@ -63,8 +63,27 @@ class BinanceSpotTestnetExchange(BaseExchange):
 
         self._filters: Optional[BinanceSymbolFilters] = None
 
+        # 与 Binance 服务器的时间差（毫秒）。下单时用 本地ms + offset 作为 timestamp，
+        # 避免 WSL/虚机时钟漂移触发 -1021。
+        self._time_offset_ms: int = 0
+        self._time_offset_ts: float = 0.0
+
+    def _sync_time_offset(self) -> None:
+        try:
+            r = requests.get(self.base_url + "/api/v3/time", timeout=5)
+            server_ms = int(r.json()["serverTime"])
+            local_ms = int(time.time() * 1000)
+            self._time_offset_ms = server_ms - local_ms
+            self._time_offset_ts = time.time()
+        except Exception:
+            # 同步失败时保留旧 offset，不阻塞下单
+            pass
+
     def _now_ms(self) -> int:
-        return int(time.time() * 1000)
+        # 首次调用或每 5 分钟重新校准一次
+        if self._time_offset_ts == 0.0 or (time.time() - self._time_offset_ts) > 300:
+            self._sync_time_offset()
+        return int(time.time() * 1000) + self._time_offset_ms
 
     def _sign(self, params: Dict[str, Any]) -> str:
         query = urlencode(params)
@@ -76,24 +95,33 @@ class BinanceSpotTestnetExchange(BaseExchange):
     def _signed_request(
         self, *, method: str, path: str, params: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        params = dict(params or {})
-        params["timestamp"] = self._now_ms()
-        params["signature"] = self._sign(params)
-        url = self.base_url + path
+        base_params = dict(params or {})
+        base_params.setdefault("recvWindow", 5000)
 
-        if method.upper() == "GET":
-            r = requests.get(url, params=params, headers=self._headers(), timeout=10)
-        elif method.upper() == "POST":
-            r = requests.post(url, params=params, headers=self._headers(), timeout=10)
-        elif method.upper() == "DELETE":
-            r = requests.delete(url, params=params, headers=self._headers(), timeout=10)
-        else:
-            raise ValueError(f"Unsupported HTTP method: {method}")
+        for attempt in range(2):
+            p = dict(base_params)
+            p["timestamp"] = self._now_ms()
+            p["signature"] = self._sign(p)
+            url = self.base_url + path
 
-        # 抛出错误信息便于排查
-        if r.status_code >= 400:
-            raise RuntimeError(f"Binance API error {r.status_code}: {r.text}")
-        return r.json()
+            if method.upper() == "GET":
+                r = requests.get(url, params=p, headers=self._headers(), timeout=10)
+            elif method.upper() == "POST":
+                r = requests.post(url, params=p, headers=self._headers(), timeout=10)
+            elif method.upper() == "DELETE":
+                r = requests.delete(url, params=p, headers=self._headers(), timeout=10)
+            else:
+                raise ValueError(f"Unsupported HTTP method: {method}")
+
+            # -1021（timestamp 偏差）时强制重新校准并重试一次
+            if r.status_code >= 400:
+                if attempt == 0 and '"code":-1021' in r.text:
+                    self._sync_time_offset()
+                    continue
+                raise RuntimeError(f"Binance API error {r.status_code}: {r.text}")
+            return r.json()
+
+        raise RuntimeError("Binance API: unexpected retry exit")
 
     def _public_request(self, *, path: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         url = self.base_url + path
