@@ -38,6 +38,20 @@ class BaseExchange(ABC):
         期货可返回很大值或用于做“可用保证金”限制（本版本用不上）。
         """
 
+    def get_total_base_qty(self, symbol: str) -> float:
+        """
+        现货 base 资产 free + locked 总量（含被挂单锁住的部分）。
+        默认实现退化为 get_available_base_qty —— 适配器若需要更精确语义请覆盖。
+        """
+        return self.get_available_base_qty(symbol)
+
+    def cancel_open_ocos(self, symbol: str) -> int:
+        """
+        撤掉该 symbol 当前所有活跃 OCO。返回撤掉的 list 数量。
+        默认 no-op，便于不支持 OCO 的适配器无需感知。
+        """
+        return 0
+
     def get_min_notional(self, symbol: str) -> float:
         """
         返回交易所对该交易对要求的最小名义金额（USDT 等计价货币）。

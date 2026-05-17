@@ -221,10 +221,12 @@ class VwapBaseExecutor:
 
     def _maybe_place_oco_protection(self, fill: OrderFill) -> Optional[OcoPlacement]:
         """
-        子单成交后挂 OCO 止盈止损。失败不打断主流程，只发 Alert。
+        子单成交后挂 OCO 止盈止损（方案 B：全仓覆盖）。失败不打断主流程，只发 Alert。
 
         - 配置未启用 / 现货 SELL（无剩余仓位）/ 未成交 → 跳过。
-        - BUY 主单 → OCO 平仓方向 SELL；SELL 主单 → OCO 平仓方向 BUY。
+        - BUY 主单 → 先撤掉该 symbol 所有活跃 OCO，再按账户该 base 资产 free+locked
+          总持仓挂新 OCO（含历史持仓）。
+        - TP/SL 基准价仍用本次子单的 fill.avg_fill_price——连续加仓会被最新一笔拉走。
         """
         tp_sl = self.config.tp_sl
         if not tp_sl.enabled:
@@ -233,7 +235,7 @@ class VwapBaseExecutor:
         instrument_type = self.config.instrument_type
         main_side: Side = fill.side
 
-        # 现货 SELL 是平仓动作，不挂 OCO
+        # 现货 SELL 是平仓动作，不挂 OCO（撤旧 OCO 在 SpotVwapExecutor 的 SELL 前置 hook 里）
         if instrument_type == "spot" and main_side == "SELL":
             return None
 
@@ -242,6 +244,20 @@ class VwapBaseExecutor:
 
         if fill.avg_fill_price <= 0:
             return None
+
+        # 方案 B 关键：撤掉该 symbol 已有的所有 OCO，准备按全仓重挂
+        try:
+            self.exchange.cancel_open_ocos(fill.symbol)
+        except Exception as e:
+            self._handle_alert(
+                Alert(
+                    alert_time=self._now(),
+                    alert_type="GLOBAL_ERROR",
+                    symbol=fill.symbol,
+                    order_id=fill.order_id,
+                    message=f"cancel_open_ocos before re-place failed: {e}",
+                )
+            )
 
         # 平仓方向与主单相反
         close_side: Side = "SELL" if main_side == "BUY" else "BUY"
@@ -256,12 +272,17 @@ class VwapBaseExecutor:
             sl_stop_price = p * (1.0 + tp_sl.sl_pct)
             sl_limit_price = p * (1.0 + tp_sl.sl_pct + tp_sl.sl_limit_buffer)
 
+        # 方案 B 关键：数量 = 全仓 free+locked，覆盖历史持仓
+        total_qty = self.exchange.get_total_base_qty(fill.symbol)
+        if total_qty <= 0:
+            return None
+
         prefix = f"oco-{fill.symbol}-{fill.order_id}-{uuid.uuid4().hex[:6]}"
         try:
             return self.exchange.place_oco_order(
                 symbol=fill.symbol,
                 side=close_side,
-                qty=float(fill.filled_qty),
+                qty=float(total_qty),
                 tp_price=float(tp_price),
                 sl_stop_price=float(sl_stop_price),
                 sl_limit_price=float(sl_limit_price),
@@ -274,7 +295,7 @@ class VwapBaseExecutor:
                 symbol=fill.symbol,
                 order_id=fill.order_id,
                 message=f"OCO placement failed: {e}",
-                extra={"fill_avg_price": p, "filled_qty": fill.filled_qty},
+                extra={"fill_avg_price": p, "total_qty": total_qty},
             )
             self._handle_alert(alert)
             return None

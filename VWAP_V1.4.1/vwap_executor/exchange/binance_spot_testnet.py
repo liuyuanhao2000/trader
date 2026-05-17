@@ -217,6 +217,52 @@ class BinanceSpotTestnetExchange(BaseExchange):
                 return float(b.get("free", "0")) + float(b.get("locked", "0")) * 0.0
         return 0.0
 
+    def get_total_base_qty(self, symbol: str) -> float:
+        print("get total base qty")
+        """base 资产 free + locked。用于方案 B：OCO 全仓覆盖。"""
+        if symbol != self.symbol:
+            raise RuntimeError(f"Binance adapter configured symbol={self.symbol}, got {symbol}")
+
+        account = self._get_balances_cached()
+        for b in account.get("balances", []):
+            print(b)
+            if b.get("asset") == self.base_asset:
+                return float(b.get("free", "0")) + float(b.get("locked", "0"))
+        return 0.0
+
+    def cancel_open_ocos(self, symbol: str) -> int:
+        """撤掉该 symbol 所有活跃 OCO。"""
+        print("cancel_open_ocos")
+        if symbol != self.symbol:
+            raise RuntimeError(f"Binance adapter configured symbol={self.symbol}, got {symbol}")
+
+        lists = self._signed_request(method="GET", path="/api/v3/openOrderList", params={})
+        if not isinstance(lists, list):
+            return 0
+
+        cancelled = 0
+        for entry in lists:
+            if entry.get("symbol") != symbol:
+                continue
+            order_list_id = entry.get("orderListId")
+            if order_list_id is None:
+                continue
+            try:
+                self._signed_request(
+                    method="DELETE",
+                    path="/api/v3/orderList",
+                    params={"symbol": symbol, "orderListId": int(order_list_id)},
+                )
+                cancelled += 1
+            except Exception:
+                # 单个撤单失败（可能已触发/已撤），不阻断其他
+                continue
+
+        # 释放 locked 后强制下次 balance 重拉
+        self._balance_cache = {}
+        self._balance_cache_ts = 0.0
+        return cancelled
+
     def place_limit_order(
         self,
         *,

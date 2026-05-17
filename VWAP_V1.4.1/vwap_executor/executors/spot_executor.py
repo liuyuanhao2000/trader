@@ -30,6 +30,14 @@ class SpotVwapExecutor(VwapBaseExecutor):
         notional_to_send = float(target_notional)
 
         if common.side == "SELL":
+            # 方案 B：SELL 前先撤掉所有旧 OCO，否则 OCO 锁住的 qty 会让 free 不够卖
+            if self.config.tp_sl.enabled:
+                try:
+                    self.exchange.cancel_open_ocos(common.symbol)
+                except Exception:
+                    # 撤旧失败不阻断 SELL（后面如 free 不足会被截断/拒单）
+                    pass
+
             # 折算：qty = notional / price
             available_qty = self.exchange.get_available_base_qty(common.symbol)
             max_notional = available_qty * limit_price
@@ -64,6 +72,13 @@ class SpotVwapExecutor(VwapBaseExecutor):
         # 对现货 SELL：依然必须不超卖（截断到可用持仓）
         notional_to_send = float(remaining_unfilled_notional)
         if common.side == "SELL":
+            # 方案 B：SELL 尾盘市价前也先撤旧 OCO，释放 locked
+            if self.config.tp_sl.enabled:
+                try:
+                    self.exchange.cancel_open_ocos(common.symbol)
+                except Exception:
+                    pass
+
             # 用“最新 best bid”估计能卖多少
             best = self.exchange.get_best_prices(common.symbol)
             available_qty = self.exchange.get_available_base_qty(common.symbol)

@@ -10,13 +10,13 @@
   "common": {
     "symbol": "BTCUSDT",
     "side": "SELL",
-    "notional": 4000,
+    "notional": 1000,
     "start_time": "2026-05-11T15:30:00",
     "quote_currency": "USDT",
     "base_currency": "BTC"
   },
   "execution": {
-    "total_duration_seconds": 30,
+    "total_duration_seconds": 10,
     "order_interval_seconds": 2,
     "price_offset": 0.0002,
     "price_offset_mode": "relative",
@@ -39,7 +39,7 @@
     "print_alerts": true
   },
   "take_profit_stop_loss": {
-    "enabled": false,
+    "enabled": true,
     "tp_pct": 0.02,
     "sl_pct": 0.01,
     "sl_limit_buffer": 0.002

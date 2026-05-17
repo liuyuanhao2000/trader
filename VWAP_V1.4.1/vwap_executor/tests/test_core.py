@@ -134,6 +134,49 @@ class TestOcoPlacement(unittest.TestCase):
             self.assertLess(oco.tp_price, oco.sl_stop_price)
             self.assertLess(oco.sl_stop_price, oco.sl_limit_price)
 
+    def test_buy_oco_covers_legacy_holdings(self):
+        """方案 B：BUY 子单成交后 OCO qty 应等于全仓 (free+locked)，覆盖旧持仓。"""
+        tp_sl = TakeProfitStopLossConfig(
+            enabled=True, tp_pct=0.02, sl_pct=0.01, sl_limit_buffer=0.002
+        )
+        cfg = _build_config(side="BUY", tp_sl=tp_sl, notional=200.0)
+        legacy_qty = 5.0
+        mock = _build_mock(spot_initial_base_qty=legacy_qty)
+        _run(cfg, mock)
+
+        self.assertGreater(len(mock._oco_placements), 0)
+        # 每次重挂时 qty 都应 >= 旧持仓；最后一笔应包含旧持仓 + 累计买入量
+        for oco in mock._oco_placements:
+            self.assertGreaterEqual(oco.qty, legacy_qty)
+        last_oco = mock._oco_placements[-1]
+        final_total = mock.get_total_base_qty("BTCUSDT")
+        self.assertAlmostEqual(last_oco.qty, final_total, places=6)
+        # 撤旧 + 重挂保证当前活跃 OCO 数 == 1
+        self.assertEqual(len(mock._active_oco_list_ids.get("BTCUSDT", [])), 1)
+
+    def test_sell_cancels_existing_ocos(self):
+        """方案 B：SELL 子单触发前应撤掉所有旧 OCO。"""
+        tp_sl = TakeProfitStopLossConfig(enabled=True)
+        cfg = _build_config(
+            side="SELL", instrument_type="spot", tp_sl=tp_sl, notional=100.0
+        )
+        mock = _build_mock(spot_initial_base_qty=10.0)
+        # 预置一笔旧 OCO 模拟历史调仓挂的保护单
+        mock.place_oco_order(
+            symbol="BTCUSDT",
+            side="SELL",
+            qty=5.0,
+            tp_price=110.0,
+            sl_stop_price=95.0,
+            sl_limit_price=94.0,
+            client_order_id_prefix="legacy",
+        )
+        self.assertEqual(len(mock._active_oco_list_ids.get("BTCUSDT", [])), 1)
+
+        _run(cfg, mock)
+        # SELL 子单跑完后，旧 OCO 应已被撤掉，且 SELL 不会重挂新 OCO
+        self.assertEqual(mock._active_oco_list_ids.get("BTCUSDT", []), [])
+
 
 if __name__ == "__main__":
     unittest.main()

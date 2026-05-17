@@ -46,6 +46,7 @@ class MockExchange(BaseExchange):
         self._order_seq = 0
         self._oco_seq = 0
         self._oco_placements: list[OcoPlacement] = []
+        self._active_oco_list_ids: Dict[str, list[str]] = {}
         self.rng = random.Random(rng_seed)
 
         # 模拟填充敏感度；数值越小，越不容易成交
@@ -76,6 +77,18 @@ class MockExchange(BaseExchange):
         if symbol != self.symbol:
             raise ValueError(f"MockExchange only supports symbol={self.symbol}")
         return float(self._balances.get(self._base_asset, 0.0))
+
+    def get_total_base_qty(self, symbol: str) -> float:
+        # mock 不区分 free/locked，直接返回总余额
+        if symbol != self.symbol:
+            raise ValueError(f"MockExchange only supports symbol={self.symbol}")
+        return float(self._balances.get(self._base_asset, 0.0))
+
+    def cancel_open_ocos(self, symbol: str) -> int:
+        if symbol != self.symbol:
+            raise ValueError(f"MockExchange only supports symbol={self.symbol}")
+        ids = self._active_oco_list_ids.pop(symbol, [])
+        return len(ids)
 
     def _next_order_id(self, client_order_id: str) -> str: #给每次下单生成一个唯一 order_id
         self._order_seq += 1
@@ -247,5 +260,6 @@ class MockExchange(BaseExchange):
             raw={"adapter": "mock"},
         )
         self._oco_placements.append(placement)
+        self._active_oco_list_ids.setdefault(symbol, []).append(list_id)
         return placement
 
